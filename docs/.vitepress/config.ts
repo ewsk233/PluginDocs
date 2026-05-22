@@ -2,6 +2,7 @@ import { defineConfig } from 'vitepress'
 
 // https://vitepress.vuejs.org/config/app-configs
 export default defineConfig({
+  base: '/PluginDocs/',
   title: 'PluginDocs',
   description: 'Minecraft plugin documentation',
   cleanUrls: true,
