@@ -6,3 +6,4 @@
 
 - [Searching 搜刮系统](/searching/)
 - [SearchingSafeBox附属插件](/searchingsafebox/)
+- [SearchingKeycard房卡附属插件](/searchingkeycard/)
