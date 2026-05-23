@@ -32,6 +32,15 @@ export default defineConfig({
           ],
         },
       ],
+      '/searchingkeycard/':[
+        {
+          text: 'SearchingKeycard',
+          items: [
+            { text: '概览', link: '/searchingkeycard/' },
+            { text: '配置文件', link: '/searchingkeycard/config' }
+          ]
+        }
+      ]
     },
   },
 })
