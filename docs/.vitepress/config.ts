@@ -8,9 +8,7 @@ export default defineConfig({
   cleanUrls: true,
   themeConfig: {
     nav: [
-      { text: '首页', link: '/' },
-      { text: 'Searching', link: '/searching/' },
-      { text: 'SearchingSafeBox', link: '/searchingsafebox/' },
+      { text: '首页', link: '/' }
     ],
     sidebar: {
       '/searching/': [
