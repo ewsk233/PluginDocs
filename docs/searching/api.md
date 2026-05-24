@@ -228,7 +228,7 @@ api.nodes.refreshNode(nodeId)
 api.nodes.refreshNodes(roomNodeIds)
 ```
 
-刷新会重新按 Searching 配置生成槽位。对附属插件创建的自定义槽位节点，通常不建议调用刷新，除非该节点的 `typeId` 已在 Searching 配置中准备了可用奖励表。
+刷新会让节点进入下一轮待搜索状态。配置节点会在下一次进入原始搜刮流程时，按 Searching 配置和打开玩家上下文生成槽位；这让权限类动态爆率可以生效。对附属插件创建的自定义槽位节点，通常不建议调用刷新，除非该节点的 `typeId` 已在 Searching 配置中准备了可用奖励表。
 
 ## 打开原始搜刮 UI
 

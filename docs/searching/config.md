@@ -122,13 +122,27 @@ tables:
   搜索箱:
     root-pool: 基础物品池
     rolls: 2-4
+    modifiers:
+      - tier: 稀有
+        weight-script: "weight + 2"
 
   可能为空的搜索箱:
     root-pool: 基础物品池
     rolls: 0-4
 
+  VIP奖励箱:
+    root-pool: 高级物品池
+    rolls: 2-3
+    modifiers:
+      - tier: 神话
+        condition: "perm('searching.vip')"
+        weight-script: "weight * 2"
+
 pools:
   基础物品池:
+    modifiers:
+      - tier: 稀有
+        weight-script: "weight + 1"
     entries:
       - item: 圆石
       - item: 煤炭
@@ -148,12 +162,109 @@ pools:
 | --- | --- |
 | `tables.<id>.root-pool` | 根物品池 ID |
 | `tables.<id>.rolls` | 抽取次数，支持 `固定值` 或 `最小-最大` |
+| `tables.<id>.modifiers` | 表级动态权重修饰器，影响该表抽到的所有池条目 |
+| `pools.<id>.modifiers` | 池级动态权重修饰器，只影响该池内条目 |
 | `pools.<id>.entries[].item` | 引用 `items.yml` 中的物品 ID |
 | `pools.<id>.entries[].pool` | 引用另一个物品池 ID |
 | `pools.<id>.entries[].weight` | 权重，不填时物品使用品质权重，子池默认为 1 |
-| `pools.<id>.entries[].condition` | 预留条件字段，当前核心抽取流程不会执行条件判断 |
+| `pools.<id>.entries[].condition` | 条目条件，不满足时该条目本轮权重为 0 |
+| `pools.<id>.entries[].weight-script` | 条目动态权重脚本，脚本结果作为最终权重 |
 
 一个 entry 必须且只能配置 `item` 或 `pool` 其中之一。
+
+### 动态爆率
+
+动态爆率基于 Kether 表达式执行。`weight-script` 必须返回一个数字，插件会把结果转成整数权重；结果小于等于 0 时，该条目本轮不会参与抽取。
+
+权重计算顺序：
+
+```text
+entry.weight 或品质默认 weight
+-> table.modifiers
+-> pool.modifiers
+-> entry.weight-script
+-> 最终权重
+```
+
+可用权重变量：
+
+| 变量 | 含义 |
+| --- | --- |
+| `baseWeight` | 条目原始权重，永远不变 |
+| `weight` | 当前权重，已经包含前面修饰器的结果 |
+| `currentWeight` | `weight` 的别名 |
+
+可用上下文变量：
+
+| 变量 | 含义 |
+| --- | --- |
+| `tableId` | 当前奖励表 ID |
+| `poolId` | 当前物品池 ID |
+| `rootPoolId` | 根物品池 ID |
+| `itemRef` | 当前物品引用，仅物品条目有值 |
+| `tier` / `tierId` | 当前物品品质，仅物品条目有值 |
+| `entryType` | `item` 或 `pool` |
+| `nestedPoolId` | 子池 ID，仅子池条目有值 |
+| `nodeType` / `nodeTypeId` | 搜刮箱类型 |
+| `world` | 世界名 |
+| `x` / `y` / `z` | 节点坐标 |
+| `slotCount` | 搜刮 UI 槽位数 |
+| `rollIndex` | 当前第几次抽取，从 0 开始 |
+| `playerId` | 触发本轮生成的玩家 UUID 字符串 |
+
+权限判断可以写成：
+
+```yaml
+condition: "perm('searching.vip')"
+```
+
+表级按品质批量提高 VIP 高品质爆率：
+
+```yaml
+tables:
+  Boss奖励:
+    root-pool: Boss奖励池
+    rolls: 2-3
+    modifiers:
+      - tier: 神话
+        condition: "perm('searching.vip')"
+        weight-script: "weight * 2"
+      - tier: 史诗
+        condition: "perm('searching.vip')"
+        weight-script: "weight + 3"
+```
+
+池级只提高某个池内的稀有物品爆率：
+
+```yaml
+pools:
+  稀有物品池:
+    modifiers:
+      - tier: 稀有
+        weight-script: "weight + 2"
+    entries:
+      - item: 钻石
+      - item: 绿宝石
+```
+
+条目级直接覆盖单个物品爆率：
+
+```yaml
+pools:
+  Boss奖励池:
+    entries:
+      - item: 下界之星
+        weight: 1
+        condition: "perm('searching.vip')"
+        weight-script: "baseWeight * 5"
+```
+
+注意：
+
+- `tier` 修饰器只匹配具体物品条目；子池条目本身没有品质，不会被 `tier` 命中。
+- 静态配置节点在创建或刷新后处于待生成状态，首次打开该轮节点的玩家会提供权限上下文。因此 VIP 爆率影响的是“本轮首次打开生成内容”的结果。
+- 已经生成内容的节点不会因为后续其他玩家权限不同而重新计算，直到下一次刷新。
+- API 自定义节点如果直接传入槽位和物品，则不会再经过配置表动态爆率计算。
 
 ## items.yml
 
