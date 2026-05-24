@@ -149,6 +149,8 @@ pools:
         weight: 10
       - pool: 稀有物品池
         weight: 2
+        weight-condition: "perm('searching.vip')"
+        weight-script: "weight + 2"
 
   稀有物品池:
     entries:
@@ -167,8 +169,11 @@ pools:
 | `pools.<id>.entries[].item` | 引用 `items.yml` 中的物品 ID |
 | `pools.<id>.entries[].pool` | 引用另一个物品池 ID |
 | `pools.<id>.entries[].weight` | 权重，不填时物品使用品质权重，子池默认为 1 |
-| `pools.<id>.entries[].condition` | 条目条件，不满足时该条目本轮权重为 0 |
+| `pools.<id>.entries[].condition` | 条目可用条件，不满足时该条目本轮不参与抽取，等价于本轮权重为 0 |
+| `pools.<id>.entries[].weight-condition` | 条目动态权重条件，只控制该条 `weight-script` 是否执行 |
 | `pools.<id>.entries[].weight-script` | 条目动态权重脚本，脚本结果作为最终权重 |
+| `tables.<id>.modifiers[].condition` | 表级权重修改条件，不满足时跳过该 modifier |
+| `pools.<id>.modifiers[].condition` | 池级权重修改条件，不满足时跳过该 modifier |
 
 一个 entry 必须且只能配置 `item` 或 `pool` 其中之一。
 
@@ -179,12 +184,16 @@ pools:
 权重计算顺序：
 
 ```text
-entry.weight 或品质默认 weight
+entry.condition 可用性检查
+-> entry.weight 或品质默认 weight
 -> table.modifiers
 -> pool.modifiers
+-> entry.weight-condition 判断
 -> entry.weight-script
 -> 最终权重
 ```
+
+`entries[].condition` 是硬条件：不满足时该条目本轮直接不可抽取，也不会继续执行该条目的 `weight-script`。`modifiers[].condition` 只判断对应 modifier 是否执行。`entries[].weight-condition` 只判断该条目的 `weight-script` 是否执行；不满足时保留经过表级/池级 modifier 后的当前权重。
 
 可用权重变量：
 
@@ -212,7 +221,7 @@ entry.weight 或品质默认 weight
 | `rollIndex` | 当前第几次抽取，从 0 开始 |
 | `playerId` | 触发本轮生成的玩家 UUID 字符串 |
 
-权限判断可以写成：
+权限判断可以写在 `modifiers[].condition`、`entries[].condition` 或 `entries[].weight-condition` 中，按对应字段语义生效：
 
 ```yaml
 condition: "perm('searching.vip')"
@@ -255,7 +264,7 @@ pools:
     entries:
       - item: 下界之星
         weight: 1
-        condition: "perm('searching.vip')"
+        weight-condition: "perm('searching.vip')"
         weight-script: "baseWeight * 5"
 ```
 
