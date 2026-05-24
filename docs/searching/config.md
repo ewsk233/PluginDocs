@@ -122,7 +122,7 @@ tables:
     rolls: 2-4
     modifiers:
       - tier: 稀有
-        weight-script: "weight + 2"
+        weight-script: 'calc "weight + 2"'
 
   可能为空的搜索箱:
     root-pool: 基础物品池
@@ -133,22 +133,22 @@ tables:
     rolls: 2-3
     modifiers:
       - tier: 神话
-        condition: "perm('searching.vip')"
-        weight-script: "weight * 2"
+        condition: 'check perm "searching.vip"'
+        weight-script: 'calc "weight * 2"'
 
 pools:
   基础物品池:
     modifiers:
       - tier: 稀有
-        weight-script: "weight + 1"
+        weight-script: 'calc "weight + 1"'
     entries:
       - item: 圆石
       - item: 煤炭
         weight: 10
       - pool: 稀有物品池
         weight: 2
-        weight-condition: "perm('searching.vip')"
-        weight-script: "weight + 2"
+        weight-condition: 'check perm "searching.vip"'
+        weight-script: 'calc "weight + 2"'
 
   稀有物品池:
     entries:
@@ -177,7 +177,7 @@ pools:
 
 ### 动态爆率
 
-动态爆率基于 Kether 表达式执行。`weight-script` 必须返回一个数字，插件会把结果转成整数权重；结果小于等于 0 时，该条目本轮不会参与抽取。
+动态爆率基于 Kether 脚本执行。`weight-script` 必须返回一个数字，常见写法是 `calc "weight * 2"`；插件会把结果转成整数权重，结果小于等于 0 时，该条目本轮不会参与抽取。
 
 权重计算顺序：
 
@@ -219,11 +219,25 @@ entry.condition 可用性检查
 | `rollIndex` | 当前第几次抽取，从 0 开始 |
 | `playerId` | 触发本轮生成的玩家 UUID 字符串 |
 
-权限判断可以写在 `modifiers[].condition`、`entries[].condition` 或 `entries[].weight-condition` 中，按对应字段语义生效：
+权限判断可以写在 `modifiers[].condition`、`entries[].condition` 或 `entries[].weight-condition` 中，按对应字段语义生效。`perm` 是 Kether 动作，`*searching.vip` 是传给它的权限参数：
 
 ```yaml
-condition: "perm('searching.vip')"
+condition: 'check perm "searching.vip"'
 ```
+
+`check` 用于比较两个值，例如判断世界名：
+
+```yaml
+condition: 'check get world == *world_nether'
+```
+
+`*` 本身不是通用“转数字”标记，而是在 Kether 语法层把后面的 token 作为字面量传给动作；最终返回类型由具体动作决定。PAPI 动作常见写法：
+
+| 写法 | 返回值 |
+| --- | --- |
+| `papi "%xxx%"` | 字符串 |
+| `papi *"%xxx%"` | 数字 |
+| `papi bool "%xxx%"` | 布尔值 |
 
 表级按品质批量提高 VIP 高品质爆率：
 
@@ -234,11 +248,11 @@ tables:
     rolls: 2-3
     modifiers:
       - tier: 神话
-        condition: "perm('searching.vip')"
-        weight-script: "weight * 2"
+        condition: 'check perm "searching.vip"'
+        weight-script: 'calc "weight * 2"'
       - tier: 史诗
-        condition: "perm('searching.vip')"
-        weight-script: "weight + 3"
+        condition: 'check perm "searching.vip"'
+        weight-script: 'calc "weight + 3"'
 ```
 
 池级只提高某个池内的稀有物品爆率：
@@ -248,7 +262,7 @@ pools:
   稀有物品池:
     modifiers:
       - tier: 稀有
-        weight-script: "weight + 2"
+        weight-script: 'calc "weight + 2"'
     entries:
       - item: 钻石
       - item: 绿宝石
@@ -262,8 +276,8 @@ pools:
     entries:
       - item: 下界之星
         weight: 1
-        weight-condition: "perm('searching.vip')"
-        weight-script: "baseWeight * 5"
+        weight-condition: 'check perm "searching.vip"'
+        weight-script: 'calc "baseWeight * 5"'
 ```
 
 注意：
