@@ -60,10 +60,10 @@ Placeholder 格式：
 
 ```yaml
 progress:
-  level-expression: "1 + (exp / 100) ^ 0.5"
+  level-expression: 'calc "1 + exp / 100"'
 ```
 
-表达式可使用：
+Kether 脚本可使用：
 
 | 变量 | 说明 |
 | --- | --- |

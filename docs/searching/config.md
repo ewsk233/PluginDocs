@@ -26,7 +26,6 @@ rolls: 0-4
 - `tables.*.rolls` 可以从 0 开始，`0-4` 表示可能抽 0 次，因此搜刮箱可能为空。
 - `items.*.amount` 必须大于 0。
 - ID 可以使用中文，但必须保持引用完全一致。
-- 推荐使用 UTF-8 保存配置文件。
 
 ## config.yml
 
@@ -36,7 +35,7 @@ debug: false
 language: zh_CN
 
 progress:
-  level-expression: "1 + (exp / 100) ^ 0.5"
+  level-expression: 'calc "1 + exp / (500 + exp / 100)"'
 
 stats:
   storage:
@@ -82,7 +81,7 @@ search-animation:
 | `config-version` | 配置版本，当前为 `1` |
 | `debug` | 是否输出调试信息 |
 | `language` | 语言文件 ID，例如 `zh_CN` |
-| `progress.level-expression` | 等级表达式，可使用 `level`、`currentLevel`、`exp`、`totalExp` |
+| `progress.level-expression` | Kether 等级脚本，必须返回数字；可使用 `level`、`currentLevel`、`exp`、`totalExp` |
 | `stats.storage.type` | `sqlite` 或 `mysql` |
 | `stats.storage.sqlite-file` | SQLite 文件名 |
 | `search-animation.enabled` | 是否启用搜索揭示动画 |
