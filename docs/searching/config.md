@@ -219,7 +219,7 @@ entry.condition 可用性检查
 | `rollIndex` | 当前第几次抽取，从 0 开始 |
 | `playerId` | 触发本轮生成的玩家 UUID 字符串 |
 
-权限判断可以写在 `modifiers[].condition`、`entries[].condition` 或 `entries[].weight-condition` 中，按对应字段语义生效。`perm` 是 Kether 动作，`*searching.vip` 是传给它的权限参数：
+权限判断可以写在 `modifiers[].condition`、`entries[].condition` 或 `entries[].weight-condition` 中，按对应字段语义生效。`perm` 是 Kether 动作，`"searching.vip"` 是传给它的权限参数：
 
 ```yaml
 condition: 'check perm "searching.vip"'
