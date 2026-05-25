@@ -41,20 +41,36 @@ keycards:
 /skc give Steve ceo_keycard 1
 ```
 
+也可以让管理员手持一个现有物品，把配置里写好的房卡属性写到这个物品上：
+
+```text
+/skc set ceo_keycard
+```
+
 ### 房卡字段
 
 | 字段 | 说明 |
 | --- | --- |
-| `material` | 房卡物品材质，例如 `PAPER`、`TRIPWIRE_HOOK` |
-| `displayName` | 房卡显示名，支持 `&` 颜色符号 |
-| `lore` | 房卡 lore，支持多行 |
-| `customModelData` | 房卡模型数据，资源包服常用 |
-| `pdc.namespace` | PDC 命名空间，默认建议保持 `searching_keycard` |
-| `pdc.key` | PDC 键名，默认建议保持 `card_id` |
-| `pdc.value` | PDC 值，用来标记这张卡的真实身份 |
+| `material` | 房卡物品材质，例如 `PAPER`、`TRIPWIRE_HOOK`。写了才会匹配材质，也只有写了它才能用 `/skc give` 生成房卡 |
+| `displayName` | 房卡显示名，支持 `&` 颜色符号。写了才会匹配显示名 |
+| `lore` | 房卡 lore，支持多行。写了才会匹配 lore |
+| `customModelData` | 房卡模型数据，资源包服常用。写了才会匹配模型数据 |
+| `pdc.namespace` | PDC 命名空间。写了 `pdc` 才会匹配 PDC |
+| `pdc.key` | PDC 键名。写了 `pdc` 才会匹配 PDC |
+| `pdc.value` | PDC 值，用来标记这张卡的真实身份。写了 `pdc` 才会匹配 PDC |
 | `consume` | 开门成功后是否消耗一张房卡 |
 | `accessSeconds` | 玩家获得房间访问权限的时长，单位秒 |
 | `lootAccessMode` | 搜刮权限模式，可选 `opener` 或 `all` |
+
+`material`、`displayName`、`lore`、`customModelData`、`pdc` 都是识别条件。没有写的条件不会参与判断；写了的条件必须全部匹配。至少要写其中一项，否则这张房卡不会被加载。
+
+如果你想用现成物品做房卡，可以只配置你需要写入的字段，然后让管理员手持物品执行：
+
+```text
+/skc set <房卡ID>
+```
+
+`set` 会根据 `keycards.yml` 写入已配置的字段，未配置的字段不会改动手上物品。
 
 `lootAccessMode` 的含义：
 
@@ -79,13 +95,14 @@ lootAccessMode: all
 
 ## PDC 识别
 
-房卡判断不是只看名字和 lore。插件发放房卡时会写入 PDC，开门时也会检查 PDC。
+房卡判断不必只看名字和 lore。配置了 PDC 时，插件发放房卡或执行 `/skc set` 都会写入 PDC，开门时也会检查 PDC。
 
 正式服建议：
 
 - 每种房卡使用独立的 `pdc.value`。
-- 用 `/skc give` 发卡。
-- 不要只靠显示名和 lore 识别房卡。
+- 如果配置了 `material`，可以用 `/skc give` 发卡。
+- 如果使用现成物品做房卡，可以用 `/skc set <房卡ID>` 写入配置中的 PDC、lore、模型数据等字段。
+- 不要只靠容易伪造的显示名和 lore 识别高价值房卡。
 
 ## rooms.yml
 
@@ -234,13 +251,13 @@ world,100,64,98
 5. 进游戏后执行：
 
 ```text
-/skc room create ceo_office_01 ceo_room
+/skc room create ceo_room ceo_office_01
 /skc room adddoor ceo_office_01
 /skc room addnode ceo_office_01
 /skc give Steve ceo_keycard 1
 ```
 
-`adddoor` 和 `addnode` 都使用玩家当前看着的方块。
+`adddoor` 和 `addnode` 都使用玩家当前看着的方块。`give` 需要房卡配置了 `material`；如果你要把手上的现有物品变成房卡，使用 `/skc set <房卡ID>`。
 
 ## 与 Searching 刷新策略配合
 
