@@ -227,7 +227,7 @@ condition: 'perm "searching.vip"'
 `check` 用于比较两个值，例如判断世界名：
 
 ```yaml
-condition: 'get world == *world_nether'
+condition: 'check get world == *world_nether'
 ```
 
 `*` 本身不是通用“转数字”标记，而是在 Kether 语法层把后面的 token 作为字面量传给动作；最终返回类型由具体动作决定。PAPI 动作常见写法：
