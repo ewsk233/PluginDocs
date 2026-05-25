@@ -132,7 +132,7 @@ tables:
     rolls: 2-3
     modifiers:
       - tier: 神话
-        condition: 'check perm "searching.vip"'
+        condition: 'perm "searching.vip"'
         weight-script: 'calc "weight * 2"'
 
 pools:
@@ -146,7 +146,7 @@ pools:
         weight: 10
       - pool: 稀有物品池
         weight: 2
-        weight-condition: 'check perm "searching.vip"'
+        weight-condition: 'perm "searching.vip"'
         weight-script: 'calc "weight + 2"'
 
   稀有物品池:
@@ -221,13 +221,13 @@ entry.condition 可用性检查
 权限判断可以写在 `modifiers[].condition`、`entries[].condition` 或 `entries[].weight-condition` 中，按对应字段语义生效。`perm` 是 Kether 动作，`"searching.vip"` 是传给它的权限参数：
 
 ```yaml
-condition: 'check perm "searching.vip"'
+condition: 'perm "searching.vip"'
 ```
 
 `check` 用于比较两个值，例如判断世界名：
 
 ```yaml
-condition: 'check get world == *world_nether'
+condition: 'get world == *world_nether'
 ```
 
 `*` 本身不是通用“转数字”标记，而是在 Kether 语法层把后面的 token 作为字面量传给动作；最终返回类型由具体动作决定。PAPI 动作常见写法：
@@ -247,10 +247,10 @@ tables:
     rolls: 2-3
     modifiers:
       - tier: 神话
-        condition: 'check perm "searching.vip"'
+        condition: 'perm "searching.vip"'
         weight-script: 'calc "weight * 2"'
       - tier: 史诗
-        condition: 'check perm "searching.vip"'
+        condition: 'perm "searching.vip"'
         weight-script: 'calc "weight + 3"'
 ```
 
@@ -275,7 +275,7 @@ pools:
     entries:
       - item: 下界之星
         weight: 1
-        weight-condition: 'check perm "searching.vip"'
+        weight-condition: 'perm "searching.vip"'
         weight-script: 'calc "baseWeight * 5"'
 ```
 
