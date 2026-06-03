@@ -117,18 +117,18 @@ search-animation:
 ```yaml
 tables:
   搜索箱:
-    root-pool: 基础物品池
+    rootPool: 基础物品池
     rolls: 2-4
     modifiers:
       - tier: 稀有
         weight-script: 'calc "weight + 2"'
 
   可能为空的搜索箱:
-    root-pool: 基础物品池
+    rootPool: 基础物品池
     rolls: 0-4
 
   VIP奖励箱:
-    root-pool: 高级物品池
+    rootPool: 高级物品池
     rolls: 2-3
     modifiers:
       - tier: 神话
@@ -159,7 +159,7 @@ pools:
 
 | 路径 | 说明 |
 | --- | --- |
-| `tables.<id>.root-pool` | 根物品池 ID |
+| `tables.<id>.rootPool` | 根物品池 ID |
 | `tables.<id>.rolls` | 抽取次数，支持 `固定值` 或 `最小-最大` |
 | `tables.<id>.modifiers` | 表级动态权重修饰器，影响该表抽到的所有池条目 |
 | `pools.<id>.modifiers` | 池级动态权重修饰器，只影响该池内条目 |
@@ -243,7 +243,7 @@ condition: 'check get world == *world_nether'
 ```yaml
 tables:
   Boss奖励:
-    root-pool: Boss奖励池
+    rootPool: Boss奖励池
     rolls: 2-3
     modifiers:
       - tier: 神话
@@ -418,7 +418,7 @@ hologram:
 # tables.yml
 tables:
   测试表:
-    root-pool: 测试池
+    rootPool: 测试池
     rolls: 1-3
 
 pools:
