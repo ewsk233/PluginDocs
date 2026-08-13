@@ -7,3 +7,4 @@
 - [Searching 搜刮系统](/searching/)
 - [SearchingSafeBox附属插件](/searchingsafebox/)
 - [SearchingKeycard房卡附属插件](/searchingkeycard/)
+- [SpectrumGraphics 下一代 Minecraft 视觉平台](/spectrumgraphics/)
