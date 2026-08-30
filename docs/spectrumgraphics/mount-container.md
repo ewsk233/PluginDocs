@@ -1,4 +1,4 @@
-# 原版界面与容器
+# 原版 Screen 与容器
 
 `mount` 让一个 UI 模板在匹配的 Minecraft Screen/Menu 打开时自动附着。
 
@@ -10,6 +10,7 @@ mount:
   mode: replace
   priority: 100
   preserveContainer: true
+  preserveNativeLogic: true
   containerLayout: declared
   targets:
     - menu: minecraft:generic_9x3
@@ -24,13 +25,16 @@ mount:
 | `mode` | `replace`、`decorate` 或 `overlay` |
 | `priority` | 多个规则同时匹配时的优先级 |
 | `preserveContainer` | 替换画面时保留原始 Menu、Slot、拖拽、快捷移动和关闭包 |
+| `preserveNativeLogic` | 保留当前 Screen 的原生输入逻辑；自定义聊天时必须开启 |
 | `containerLayout` | `auto`、`vanilla`、`declared` 或 `hybrid` |
 
 ### 三种模式
 
-- `replace`：替换原版绘制；可保留真实容器交互；
-- `decorate`：保留原版画面，在上方添加可交互 Spectrum 内容；
-- `overlay`：只添加穿透层，不接管原版输入。
+- `replace`：替换原版绘制；可保留真实容器或 ChatScreen 逻辑；
+- `decorate`：保留原版画面，再添加可交互 Spectrum 内容；
+- `overlay`：添加不接管原版输入的穿透层。
+
+HUD 的 `layer.order` 只在 HUD 阶段排序，不能把 HUD 提升到 Screen 上方。需要显示在聊天或背包中的内容，应挂载到对应 Screen。
 
 ### 匹配方式
 
@@ -158,3 +162,5 @@ flows:
 4. 检查拿取、放入、拖拽、Shift 快捷移动和关闭同步；
 5. 分别测试 declared/hybrid/vanilla；
 6. 调整 GUI Scale 和窗口尺寸，确认 breakpoint 后 Slot 与点击区域仍一致。
+
+自定义聊天需要额外测试 Tab 建议鼠标点击、滚轮、Component hover/click、输入草稿和窗口缩放，详见[聊天界面与消息层](./chat.md)。

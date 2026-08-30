@@ -1,6 +1,6 @@
 # 3D 模型与动作
 
-SpectrumGraphics 把 Blockbench 工程视为作者输入，而不是运行时格式。`.bbmodel` 先被严格校验、归一化并编译成带 SHA-256 内容哈希的 `.sgmodel`；客户端渲染线程只读取稳定的 `.sgmodel`。
+SpectrumGraphics 把 Blockbench/Bedrock 模型视为作者输入，而不是运行时格式。`.bbmodel`、`.geo.json` 与相邻动画先被严格校验、归一化并编译为带内容哈希的 `.sgmodel`；客户端渲染线程只读取稳定运行时格式。
 
 ## 能力阶段
 
@@ -9,7 +9,7 @@ SpectrumGraphics 把 Blockbench 工程视为作者输入，而不是运行时格
 | M1 | Blockbench bbmodel V4/V5 编译、Cube、刚性 Mesh、多贴图、骨骼、Locator、动画轨道 |
 | M2 | 世界模型实例、Anchor、距离/视锥裁剪、光照和材质路径、替换锚定实体 |
 | M3 | 独立动作播放器、循环/单次、速度、暂停/恢复/seek/stop、cross-fade、完成事件 |
-| M4 | 版本化模型场景协议、Pack `models/`、热重载、资源哈希与管理指令 |
+| M4 | 版本化模型场景协议、Pack `model/`、热重载、资源哈希与管理指令 |
 | M5 | typed 参数、状态、条件/完成迁移、优先级、cross-fade 与有序事件 |
 
 ## 从 Blockbench 编译
@@ -32,6 +32,8 @@ SpectrumGraphics 把 Blockbench 工程视为作者输入，而不是运行时格
 
 当前一个顶点只归属一个骨骼，即刚性蒙皮。权重蒙皮、IK、MoLang/Bedrock 控制器和相机轨道尚未伪装为已支持能力。
 
+正常服主工作流不需要手工运行 Gradle task：把 `.bbmodel` 或 Bedrock GEO、动画与纹理放入服务端 `resource/`，`/sg assets build` 会自动编译。Gradle task 适合仓库开发和独立验证。
+
 ## 发布 `.sgmodel`
 
 ```text
@@ -45,11 +47,11 @@ plugins/SpectrumGraphics/resource/models/guide.sgmodel
 /sg assets publish model-2026-01
 ```
 
-模型场景 YAML 和模型二进制是不同内容：YAML 放在 Pack `models/` 或独立 `model/`，`.sgmodel` 放在独立客户端 `resource/` 发布中。
+模型场景 YAML 和模型二进制是不同内容：YAML 放在 Pack `model/` 或独立 `model/`，`.sgmodel` 放在独立客户端 `resource/` 发布中。
 
 ## 模型场景
 
-Pack `models/guide.yml`：
+Pack `model/guide.yml`：
 
 ```yaml
 schema: spectrumgraphics/model/v1
@@ -81,10 +83,10 @@ instances:
 清单需要：
 
 ```yaml
-features: [models, assets]
+features: [models]
 ```
 
-独立场景放在 `plugins/SpectrumGraphics/model/*.yml`。
+独立场景放在 `plugins/SpectrumGraphics/model/*.yml`。Pack 中的旧 `models/` 名称会被验证器拒绝，必须迁移为单数 `model/`。
 
 ## Anchor
 
@@ -181,7 +183,7 @@ instances:
 ## API 驱动参数
 
 ```kotlin
-SpectrumGraphics.api.setModelParameters(
+SpectrumGraphics.api.models.setParameters(
     player,
     "example:guide",
     "guide",
@@ -191,7 +193,7 @@ SpectrumGraphics.api.setModelParameters(
     ),
 )
 
-val subscription = SpectrumGraphics.api.onModelEvent { target, event ->
+val subscription = SpectrumGraphics.api.models.onEvent { target, event ->
     // 动作完成或控制器迁移事件
 }
 ```

@@ -1,116 +1,111 @@
 # 管理指令
 
-主指令是 `/spectrumgraphics`，别名 `/sg`。权限：`spectrumgraphics.admin`，默认仅 OP。
+主指令 `/spectrumgraphics`，别名 `/sg`。默认权限 `spectrumgraphics.admin`，仅 OP 拥有。
 
-## 总表
+## 核心与 Pack
 
 | 指令 | 作用 |
 | --- | --- |
-| `/sg open <template> [player]` | 为自己或在线玩家打开模板 |
-| `/sg validate` | 校验全部 Pack、旧式 UI、WorldCanvas 和模型，不改变在线快照 |
-| `/sg reload` | 重载资源分发配置，预检并原子重载所有内容 |
-| `/sg schema` | 在 `plugins/SpectrumGraphics/schemas/` 生成 v1 JSON Schema |
-| `/sg stats` | 查看脚本 worker、队列、超时、fallback 和每 Action 延迟 |
-| `/sg pack enable <pack>` | 启用已加载 Pack |
-| `/sg pack disable <pack>` | 停用 Pack 并关闭不再可用的文档 |
-| `/sg pack unload <pack>` | 从当前仓库卸载 Pack |
-| `/sg model load` | 校验并重载独立模型与含模型的 Pack |
-| `/sg model spawn <scene> [player]` | 为玩家生成并绑定一个模型场景 |
-| `/sg model play <scene> <instance> <animation> [player]` | 播放一次动作，默认 150 ms cross-fade |
-| `/sg model stop <scene> <instance> [player]` | 停止实例动作 |
-| `/sg assets reload` | 仅热重载资源交付配置并刷新客户端 offer |
-| `/sg assets build [release]` | 异步构建加密发布；默认 ID 为 `production` |
-| `/sg assets publish <release>` | 原子发布已经构建的资源版本 |
-| `/sg assets status` | 查看当前发布、哈希、交付模式与客户端状态 |
+| `/sg open <template> [player]` | 为自己或在线玩家打开 UI 模板 |
+| `/sg validate` | 校验全部候选内容，不改变运行快照 |
+| `/sg reload` | 预检并原子重载全部内容，同时刷新资源 offer |
+| `/sg stats` | Behavior、模型和伤害显示统计 |
+| `/sg pack enable <id>` | 启用 Pack |
+| `/sg pack disable <id>` | 停用 Pack |
+| `/sg pack unload <id>` | 从当前快照卸载 Pack |
 
-## open
+当前构建没有注册 `/sg schema`；JSON Schema 随 Contract/作者工具提供，URN `$id` 不是下载 URL。
 
-玩家给自己打开：
+## World Popup、模型和粒子
 
 ```text
-/sg open example:shop
+/sg damage test [template] [amount]
+
+/sg model load
+/sg model inspect <scene>
+/sg model spawn <scene> [player]
+/sg model play <scene> <instance> <animation> [player]
+/sg model stop <scene> <instance> [player]
+
+/sg particle play <id> [player]
+/sg particle stop <handle>
 ```
 
-给指定玩家打开：
+`model spawn` 将仓库场景绑定到玩家，后续重载会同步；`play` 默认一次播放并使用 150ms cross-fade。控制台使用涉及玩家的命令时必须给出 player。
+
+## Camera
 
 ```text
-/sg open example:shop Steve
+/sg camera load
+/sg camera play <document> <scene> [player] [focus-entity-uuid]
+/sg camera stop <document> [player]
+/sg camera preset <document> <preset> [player]
+/sg camera modifier shake <amplitude> <durationMillis>
+/sg camera modifier recoil <yaw> <pitch> <durationMillis>
+/sg camera modifier zoom <fov> <durationMillis>
+/sg camera editor start <document>
+/sg camera editor point
+/sg camera editor remove
+/sg camera editor save [durationMillis]
+/sg camera editor cancel
 ```
 
-控制台必须提供玩家名。模板 ID 和在线玩家名支持补全。目标玩家必须安装兼容客户端 Mod。
+Editor 记录玩家眼睛位置，绘制仅编辑者可见的路径采样；保存、取消、重启或退出都会清理粒子任务。
 
-## validate 与 reload
+## Avatar 与 Key
 
-推荐修改循环：
+```text
+/sg avatar load
+/sg avatar list
+/sg avatar set <profile> [player]
+/sg avatar clear [player]
+/sg avatar equip <cosmetic> [player]
+/sg avatar unequip <slot-or-cosmetic> [player]
+/sg avatar play <action> [player]
+
+/sg key load
+/sg key list
+/sg key debug [player]
+/sg key group <document> <group> <true|false> [player]
+```
+
+## 物品
+
+```text
+/sg item list
+/sg item set <appearance> [player]
+/sg item inspect
+/sg item clear [player]
+/sg item apply <appearance> <Arim matcher>
+/sg item effect add <effect>
+/sg item effect remove <effect>
+/sg item effect refresh
+/sg item effect inspect
+```
+
+`set/clear/inspect/effect` 默认操作执行者手持物品；`apply` 用 Arim 匹配玩家物品并批量设置外观。
+
+## 资源
+
+```text
+/sg assets reload
+/sg assets build [release]
+/sg assets publish <release>
+/sg assets status
+```
+
+- `reload` 只重读 delivery 配置；绑定失败保留旧监听器；
+- `build` 异步编译和加密源资源，默认 release ID 为 `production`；
+- `publish` 只接受已经完成并通过 hash 校验的 release；
+- `status` 显示当前发布、hash、交付模式和客户端状态计数。
+
+## 推荐修改循环
 
 ```text
 /sg validate
 /sg reload
 ```
 
-`validate` 只创建候选并输出来源文件、YAML path、节点或 Pack 诊断。`reload` 只有在 Pack、UI、WorldCanvas 和模型全部预检成功时才切换；失败保留之前的可用快照。
+先修复诊断再重载。候选失败不会替换上一份运行快照，也不需要通过反复重启服务器来测试普通内容。
 
-`reload` 还会读取 `assets.delivery` 并向在线客户端刷新当前资源 offer，但不会自动构建新资源归档。
-
-## Pack
-
-```text
-/sg pack enable shop:main
-/sg pack disable shop:main
-/sg pack unload shop:main
-```
-
-命令输出打开和关闭的文档数量。未找到 ID、状态无变化或依赖关系不允许时不会伪装为成功。
-
-## 模型
-
-玩家自己：
-
-```text
-/sg model load
-/sg model spawn example:guide
-/sg model play example:guide guide wave
-/sg model stop example:guide guide
-```
-
-控制台或指定目标：
-
-```text
-/sg model spawn example:guide Steve
-/sg model play example:guide guide wave Steve
-/sg model stop example:guide guide Steve
-```
-
-`load` 会校验独立 `model/` 以及 Pack；失败时旧模型快照继续生效。`play/stop` 只对玩家已经 spawn 的 scene/instance 生效。
-
-## 资源
-
-```text
-/sg assets build release-2026-08
-/sg assets publish release-2026-08
-/sg assets status
-```
-
-`build` 在后台线程执行，完成后输出文件数、字节和绝对路径。只有 build 完成的 release 才能 publish。发布时再次校验归档哈希。
-
-修改 `config.yml` 后：
-
-```text
-/sg assets reload
-```
-
-如果 auto 监听绑定失败，旧配置继续生效。
-
-## stats
-
-```text
-/sg stats
-```
-
-输出：
-
-- 活跃工作线程、排队数和完成数；
-- 每 Action 调用、成功、失败、超时、拒绝、fallback；
-- 平均微秒和最大微秒。
-
-它用于定位服务端 Behavior，不代替客户端 `F8` UI 性能面板。
+下一步：[验证与故障排查](./operations.md) · [资源构建与发布](./assets.md)

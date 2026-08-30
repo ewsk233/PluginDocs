@@ -159,7 +159,7 @@ val waypoint = SpectrumWaypoint.fromNode(
     ),
 )
 
-val handle = SpectrumGraphics.api.createWaypoint(player, waypoint)
+val handle = SpectrumGraphics.api.world.createWaypoint(player, waypoint)
 handle.show(targetLocation)
 handle.moveTo(updatedLocation)
 handle.hide()

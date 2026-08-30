@@ -1,6 +1,6 @@
-# 开发 API
+# 公共 API
 
-Paper 侧公共入口是：
+Paper 侧唯一入口是 `SpectrumGraphics.api`。API 已按领域拆分；不要访问 `runtime`、repository、session 或其他 internal 实现。
 
 ```kotlin
 import org.ewsk.spectrumgraphics.plugin.SpectrumGraphics
@@ -8,95 +8,68 @@ import org.ewsk.spectrumgraphics.plugin.SpectrumGraphics
 val api = SpectrumGraphics.api
 ```
 
-公共接口优先使用 TabooLib `ProxyPlayer` 和 `InternalEvent`。除 Waypoint 的便利重载外，不要求附属插件把 Bukkit 类型带入核心逻辑。
+## 领域服务
 
-> `open`、`update`、`updateState`、`close`、WorldCanvas、模型控制和 Pack 生命周期等写操作必须在服务端主线程调用，并且目标玩家必须在线。
+| 服务 | 职责 |
+| --- | --- |
+| `api.ui` | UI 模板、文档、状态、交互订阅 |
+| `api.world` | WorldCanvas、Waypoint、World Popup |
+| `api.hud` | transient feed 发布、移除、清空 |
+| `api.models` | 模型场景、实例、动画、参数、事件 |
+| `api.cameras` | Camera 文档、preset、scene、modifier |
+| `api.particles` | 粒子与声音播放、停止 |
+| `api.avatars` | Profile、Cosmetic、loadout、语义动作 |
+| `api.items` | 物品外观与额外效果 |
+| `api.text` | Text 注册表与图标展开 |
+| `api.packs` | Pack 查询、启停、重载和资源同步 |
+| `api.keys` | Key 文档与玩家 group |
+| `api.slots` | 额外槽位读写 |
+| `api.extensions` | 数据源、Behavior、Capability、Anchor resolver |
+| `api.diagnostics` | 客户端能力、session 和脚本指标 |
 
-## 打开模板与状态
+除文档明确说明的只读查询外，打开、更新、关闭、Pack 生命周期、模型/镜头/槽位/物品写操作都必须在服务端主线程调用，目标玩家必须在线。
+
+## UI
 
 ```kotlin
-val buttonText = SpectrumStateKey.of<String>("shop.button")
+val title = SpectrumStateKey.of<String>("shop.title")
 val state = SpectrumState.build {
-    this[buttonText] = "购买 10 金币"
+    this[title] = "限时商店"
 }
 
-SpectrumGraphics.api.open(player, "shop:main", state)
+api.ui.open(player, "shop:main", state)
+api.ui.updateState(player, DocumentId("shop:main"), changedState)
+api.ui.refreshDataSources(player, DocumentId("shop:main"))
+api.ui.close(player, DocumentId("shop:main"), "Shop closed")
 ```
 
-也可以打开代码构造的 `UiDocument` 或 `UiTemplate`：
+也可传递代码构造的 `UiDocument` 或 `UiTemplate`。`update` 自动比较完整文档和 patch；`updateState` 自动选择 snapshot/patch。每次结果都有 revision、sequence 和 hash，客户端可 NACK 并请求重同步。
+
+### 交互订阅
 
 ```kotlin
-SpectrumGraphics.api.open(player, document)
-SpectrumGraphics.api.open(player, template, state)
-```
-
-常用查询：
-
-```kotlin
-api.template("shop:main")
-api.templateIds()
-api.world("quests:markers")
-api.worldIds()
-api.modelScene("npc:guide")
-api.modelSceneIds()
-```
-
-## 更新与关闭
-
-```kotlin
-api.update(player, changedDocument)
-api.update(player, changedTemplate)
-api.updateState(player, DocumentId("shop:main"), newState)
-api.refreshDataSources(player, DocumentId("shop:main"))
-api.close(player, DocumentId("shop:main"), "Shop closed")
-```
-
-`update` 自动比较完整文档与差量，发送更合适的形式。`updateState` 自动选择 snapshot 或 patch。每次应用都有 revision、sequence 和结果哈希；客户端异常时可 NACK 并请求重同步。
-
-## 交互订阅
-
-按 Action 订阅：
-
-```kotlin
-val subscription = api.onAction(
+val subscription = api.ui.onAction(
     SpectrumGraphicsAction.of("shop.buy"),
 ) { event ->
-    logger.info("${event.player.name} clicked ${event.nodeId}")
+    // 在权威服务端验证并执行业务
 }
+
+val allInteractions = api.ui.onInteraction { event -> }
+val sessionErrors = api.ui.onSessionError { event -> }
 ```
 
-其他订阅：
-
-```kotlin
-api.onInteraction { event -> /* 所有经过权威校验的交互 */ }
-api.onClick { event -> /* 兼容点击事件 */ }
-api.onSessionError { event -> /* 协议或会话错误 */ }
-api.onModelEvent { player, event -> /* 动作完成/控制器迁移 */ }
-```
-
-也可以使用 TabooLib 事件总线：
-
-```kotlin
-@SubscribeEvent
-fun onInteraction(event: SpectrumGraphicsInteractionEvent) {
-    info("${event.player.name}: ${event.interaction}")
-}
-```
-
-订阅对象可关闭；附属插件卸载时应释放，避免热重载后重复监听。
+订阅返回 `AutoCloseable`；附属卸载时关闭，避免热重载后重复监听。也可以订阅对应 TabooLib InternalEvent。
 
 ## 自定义数据源
 
 ```kotlin
-val registration = api.registerDataSource(
+val registration = api.extensions.registerDataSource(
     id = "myaddon:profile",
     cost = 2,
 ) { context ->
     StateValue.TextValue(loadRank(context.player.uniqueId))
 }
 ```
-
-YAML：
 
 ```yaml
 state:
@@ -110,115 +83,108 @@ state:
       cost: 2
 ```
 
-Provider cost 范围 1–100。YAML 声明的 cost 不得低于 Provider cost，单次模板解析总预算默认 100。
+Provider cost 为 1–100，YAML 声明不能低于 Provider cost；单次解析有总预算。拥有自己失效事件的附属可调用 `api.ui.refreshDataSources`，不要建立无界每 Tick 查询。
 
-## WorldCanvas
-
-代码文档：
+## WorldCanvas 与 Waypoint
 
 ```kotlin
-api.openWorld(player, worldDocument, initialState)
-api.updateWorld(player, changedWorldDocument)
-api.updateWorldState(player, documentId, state)
-api.close(player, documentId)
-```
-
-Waypoint：
-
-```kotlin
-val handle = api.showWaypoint(player, waypoint, location)
+val handle = api.world.showWaypoint(player, waypoint, location)
 handle.moveTo(nextLocation)
 handle.hide()
+handle.show(nextLocation)
 handle.close()
 ```
 
-自定义动态 Anchor resolver：
+`createWaypoint` 只创建内存定义，第一次 `show` 才挂载；`hide` 可复用，`close` 永久释放。附属持久化由附属自己负责。
+
+动态 Anchor：
 
 ```kotlin
-val resolver = api.registerWorldAnchorResolver { player, anchor ->
-    val target = taskTargets.resolve(player.uniqueId, anchor)
-        ?: return@registerWorldAnchorResolver null
-    SpectrumResolvedWorldAnchor(
-        position = WorldVec3(target.x, target.y, target.z),
-        world = target.world,
-        dimension = target.dimension,
-    )
+val resolver = api.extensions.registerWorldAnchorResolver { player, anchor ->
+    resolveTarget(player, anchor)?.let {
+        SpectrumResolvedWorldAnchor(it.position, it.world, it.dimension)
+    }
 }
 ```
 
-Resolver 返回 `null` 会继续尝试下一个 resolver 和内置实体/玩家解析。
+返回 null 会继续尝试下一个 resolver 与内建解析。
 
-## 模型场景
+## 临时 Feed
 
 ```kotlin
-api.spawnModelScene(player, "npc:guide")
-api.playModel(
-    player = player,
-    sceneId = "npc:guide",
-    instanceId = "guide",
-    animation = "wave",
-    loop = false,
-    speed = 1f,
-    fadeMillis = 150,
-)
-
-api.setModelParameters(
+api.hud.publishFeed(
     player,
-    "npc:guide",
-    "guide",
+    "gungame:kill-feed",
+    SpectrumFeedNotice(
+        templateId = "kill-card",
+        values = mapOf(
+            "killer" to mapOf("displayName" to killer.displayName),
+            "victim" to mapOf("displayName" to victim.displayName),
+            "event" to mapOf("headshot" to true),
+        ),
+        ttlMillis = 4_000,
+        priority = 10,
+    ),
+)
+```
+
+频道可自定义，payload 可嵌套。服主 Pack 提供受限 UiNode card，附属不传任意文档。详见[临时 HUD Feed](./transient-feeds.md)。
+
+## 模型、镜头与粒子
+
+```kotlin
+api.models.spawn(player, "npc:guide")
+api.models.play(player, "npc:guide", "guide", "wave", loop = false, fadeMillis = 150)
+api.models.setParameters(
+    player, "npc:guide", "guide",
     mapOf("moving" to ModelParameterValue.BooleanValue(true)),
 )
 
-api.stopModel(player, "npc:guide", "guide", fadeMillis = 150)
-api.closeModelScene(player, "npc:guide")
+api.cameras.load(player, "quest:intro")
+api.cameras.play(player, "quest:intro", "arrival")
+api.cameras.preset(player, "quest:intro", "肩后")
+
+val handle = api.particles.playAt(location, "magic")
+handle.stop()
 ```
 
-`openModelScene` 打开代码构造且不跟随仓库热重载的文档；`spawnModelScene` 打开仓库场景并绑定后续 `/sg model load`。
+模型事件和 Camera 事件都提供订阅。粒子还支持 Entity、Model Locator 和 Camera anchor。
 
-## Pack 与 Behavior
+## Avatar、Item、Text、Slot
+
+```kotlin
+api.avatars.set(player, "示例玩家")
+api.avatars.equip(player, "示例帽子")
+
+api.items.setAppearance(itemStack, "boss:crystal_blade")
+api.items.addEffect(itemStack, "传说边框")
+
+val glyph = api.text.iconGlyph("金币")
+val expanded = api.text.expandIcons("奖励 <icon:金币>")
+
+api.slots.set(player, "护符", itemStack)
+```
+
+Avatar catalog/entitlement/loadout、额外槽位 store 都可以注册替代 Provider。注册对象必须在附属卸载时关闭。
+
+## Pack 与校验
 
 ```kotlin
 val packId = NamespacedId("shop:main")
+api.packs.isEnabled(packId)
+api.packs.enable(packId)
+api.packs.disable(packId)
 
-api.packIds()
-api.packManifest(packId)
-api.isPackEnabled(packId)
-api.enablePack(packId)
-api.disablePack(packId)
-api.unloadPack(packId)
-
-val actions = api.registerBehaviors(packId) { /* typed Action DSL */ }
-val capability = api.registerCapability(
-    packId,
-    NamespacedId("shop:economy"),
-) { /* typed operation DSL */ }
+api.ui.validate()
+api.world.validate()
+api.models.validate()
+api.cameras.validate()
+api.keys.validate()
+api.avatars.validate()
+api.slots.validate()
+api.packs.validate()
 ```
 
-`registerBehaviors` 只能注册 Pack 清单已经声明的 Action；`registerCapability` 也受 Pack 声明限制。
+`validate` 不切换在线快照。附属若编排跨领域重载，也必须先完成所有候选验证，再执行切换，避免半成功状态。
 
-## 校验与重载
-
-```kotlin
-api.validatePacks()
-api.validateTemplates()
-api.validateWorlds()
-api.validateModels()
-
-api.reloadPacks()
-api.reloadTemplates()
-api.reloadWorlds()
-api.reloadModels()
-```
-
-`validate*` 不切换在线快照。自己编排多仓库重载时，应像 `/sg reload` 一样先全部预检，再执行切换，避免形成跨仓库半成功状态。
-
-## 客户端能力与指标
-
-```kotlin
-api.clientFeatures(player)
-api.supportsClientFeature(player, "example:shader-node", minimumVersion = 2)
-api.sessionStats(player)
-api.scriptStats()
-```
-
-Session 指标包括包量、字节、完整打开、patch、state snapshot/patch、缓存命中、ACK/NACK、resync、事件接受/拒绝与限流。
+下一步：[Behavior 与 Capability](./behaviors.md) · [临时 HUD Feed](./transient-feeds.md)

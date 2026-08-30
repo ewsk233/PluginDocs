@@ -1,128 +1,118 @@
-# 常见问题与限制
+# 验证与故障排查
 
-## 常见问题
+按数据流排查：服务端是否加载 → 是否向目标玩家发布 → 客户端是否接收 → 资源是否可用 → 节点是否布局并进入正确渲染阶段。不要只盯着最终画面猜原因。
 
-### 指令成功但客户端没有 UI
+## 标准检查顺序
 
-检查：
+1. `/sg validate`：先解决第一个结构诊断；
+2. `/sg reload`：确认候选原子切换成功；
+3. 服务端日志：确认目标文档/资源 ID 和玩家；
+4. 实际客户端 `.minecraft/logs/latest.log`：确认握手、Open/Patch/State/资源状态；
+5. `F8`：检查布局、绘制、缓存、网络、ACK/NACK、resync；
+6. 用最小配置复现，再逐段恢复复杂节点。
 
-- 玩家是否安装 Fabric 1.20.1 客户端 Mod；
-- Plugin 与 Mod 是否同一构建；
-- Pack 是否启用；
-- UI ID 是否完整且命名空间正确；
-- 客户端日志是否完成握手；
-- automatic mount 是否真的匹配当前 Screen/Menu ID。
+使用 Gradle `runClient` 时，日志在项目运行目录；独立客户端必须检查独立实例自己的 `latest.log`。不要用另一个客户端的日志解释当前实例。
 
-### `/sg reload` 失败
-
-先运行 `/sg validate`，按诊断中的文件、YAML path 和节点定位。常见原因：
-
-- schema 写错或仍使用早期字段；
-- `root/children` 写成列表或添加内联 `id`；
-- Pack feature 未声明；
-- Pack 内 ID 命名空间不一致；
-- import、component、Flow、Action、资源或模型引用不存在；
-- 依赖缺失、版本不兼容或形成循环；
-- 正则表达式非法；
-- 超过文件、节点、深度或资源预算。
-
-失败不会替换当前运行快照，先修复候选再重试。
-
-### 图片或模型缺失
+## 指令成功但没有 UI
 
 检查：
 
-- 原始文件是否放在独立 `resource/`；
-- 是否重新 `/sg assets build` 并 `/sg assets publish`；
-- 客户端是否显示匹配 release hash 的状态；
-- source 是资源包内路径，而不是服务端磁盘绝对路径；
-- `.sgmodel` 的 asset ID 和场景引用是否一致；
-- 若写了 `sha256`，它是否匹配实际文件。
+- Fabric 1.20.1 Mod、Fabric API、Fabric Language Kotlin 是否实际加载；
+- Plugin 与 Mod 是否来自同一次构建；
+- 客户端握手是否完成，是否因协议或 feature 不兼容被拒绝；
+- Pack 是否 enabled，文档 ID 是否与加载结果一致；
+- automatic mount 是否匹配真实 Screen/Menu ID；
+- 是否有更高 priority 的规则命中同一个 Screen；
+- HUD 是否被 Camera cinematic 或作者条件隐藏。
 
-### auto 下载失败
+独立客户端与 `runClient` 行为不同时，重点比较实际 Mod JAR、资源目录、配置、缓存和 Mixin/资源编译日志，而不是假定代码路径相同。
 
-- `public-base-url` 必须为玩家可访问的 HTTPS；
-- 反向代理路径必须包含 `/spectrum-assets/`；
-- 防火墙允许反代访问 `bind-address:bind-port`；
-- 不要把 `127.0.0.1` 当作公网 URL；
-- 用 `/sg assets status` 检查发布和客户端状态；
-- 检查代理是否改变了按哈希定位的归档字节。
+## `/sg reload` 失败
 
-### 原版容器 Slot 与点击位置错位
+常见原因：
 
-- 使用 `menu-slot`/`menu-slot-grid`，不要用普通 `slot`；
-- replace 时设置 `preserveContainer: true`；
-- 核对 `containerLayout`；
-- 在多个 GUI Scale 和窗口尺寸测试 breakpoint；
-- 确认 target 匹配的是正确 MenuType；
-- 检查节点 bounds 与自定义 image/hoverImage 尺寸。
+- `schema` 或 authoring/canonical 语法混写；
+- `body/children/root` 结构错误或节点 ID 重复；
+- Pack feature、Action、Capability 未声明；
+- import、component、Flow、资源或模型引用不存在；
+- Pack ID/Action 使用了非法 namespaced 格式；
+- 内容 ID 重复，即使它们来自不同 Pack；
+- 依赖缺失、版本不匹配或循环；
+- 正则非法；
+- 超过节点、深度、字符串或资源预算。
 
-### 模型不播放
+失败候选不会替换现有运行快照。先修复所有领域的验证结果，再执行重载。
 
-- 先 `/sg model spawn`，再 `play`；
-- scene 和 instance ID 必须正确；
-- animation 必须存在于编译后的 `.sgmodel`；
-- 客户端必须已激活包含模型的资源发布；
-- Controller 参数名称和类型必须与 YAML 声明一致；
-- 非循环动作才适合 `on: completion` 迁移。
+## 图片、字体、模型或物品缺失
+
+- `/sg reload` 只重载声明，不编译源资源；
+- 正式资源必须位于服务端 `resource/`，随后 build/publish；
+- 本地测试资源必须位于当前客户端实例的 `resourcepacks/SpectrumGraphics/resource/`；
+- namespaced source 走 Minecraft ResourceManager，相对 source 走 Spectrum resource 根；
+- 检查当前发布 hash 与客户端状态；
+- Item Appearance 的 `id` 与 `layers.image`/`visual.texture` 不要求同名；
+- 显式 `sha256` 必须与实际字节一致。
+
+字体小字号不清晰时，优先使用 `renderer: native` 或 `auto`、`size: auto`、`hinting: auto`、`pixelSnap: true`，再微调 weight/sharpness。阴影过重可设 `vanilla.shadow: false` 或降低 opacity/offset。
+
+## 粒子报告 sibling texture 缺失
+
+纹理按“同名兄弟 PNG → description texture 对应的 `resource/` PNG → Minecraft ResourceLocation”解析。`textures/particle/particles` 是 Bedrock 默认图集路径，不等于必须存在 `<粒子名>.png`；若客户端 Java 资源包没有该图集，提供 `resource/textures/particle/particles.png`。
+
+## 自定义聊天仍显示原版
+
+- replace mount 必须匹配 `minecraft:chat`；
+- 使用 `preserveNativeLogic: true`；
+- `chat-history` 与 `chat-input-proxy` 必须成功布局；
+- 确认没有另一个更高 priority mount；
+- 只想移动游戏中的近期消息应使用 `chat-overlay`，它不会替换打开后的 ChatScreen；
+- chat-overlay 只有存在有效可绘制节点时才抑制原版 gameplay chat。
+
+Tab 建议或 Component hover 被遮挡，通常是 Screen 合成阶段错误，而不是提高 zIndex 就能解决。Tooltip/建议必须在 Screen 顶层阶段绘制；HUD 和 transient feed 则应保持在 Screen 下方。
+
+## 容器 Slot 或额外槽位错位
+
+- 真实容器使用 `menu-slot*`，普通 `slot` 不是服务器 Menu Slot；
+- replace 容器通常设置 `preserveContainer: true`；
+- 核对 `containerLayout: vanilla/declared/hybrid`；
+- 响应式缩放后，视觉与命中必须共享同一 bounds；
+- Extra Slot hover 由 `showHighlight` 控制；
+- 验收拿取、放入、右键拆分、拖拽、Shift 快捷移动和 carried item。
+
+`Node ... is not interactive` 表示客户端发送了不应存在的交互。装饰节点设置 `pointerEvents: none`，点击行为放在 Pressable/Button/Slot 等交互节点；如果普通鼠标移动就触发该日志，应保留客户端与服务端日志作为实现缺陷排查。
+
+## 窗口缩放后布局或输入异常
+
+- 根节点使用 vw/vh + min/max；
+- 内部使用 Flex/Grid；
+- breakpoint 通过 `style.at` 只覆盖差异字段；
+- 保持节点 ID 和 repeat key 稳定；
+- 输入草稿、滚动和焦点由 retained state 按 NodeId 保留；
+- GUI Scale 改变后测试文字物理像素对齐与点击区域。
+
+## 圆角、阴影或分隔线异常
+
+- 避免多个尺寸略有差异的深色 Panel 在同一区域叠加；
+- Header/Footer 只给需要的角设置半径，其余显式为 0；
+- 检查 backgroundColor alpha 与 shadows，不要把阴影误认为角落变黑；
+- 滚动区的 clip、背景和行高必须一致，避免每行背景间露出 1px 间隔；
+- 极细边框和小半径会受 GUI Scale 量化，应在多个 Scale 实机验收。
 
 ## 观察工具
 
-客户端 `F8`：
+客户端 `F8`：layout、render、cache、network、patch/state、ACK/NACK、resync 和帧预算。服务端 `/sg stats`：Behavior worker、队列、每 Action 成功/失败/超时/拒绝/fallback，以及模型和伤害显示统计。
 
-- 布局、绘制与缓存；
-- 网络、patch 和 state；
-- ACK/NACK 与 resync；
-- 帧预算和降级。
-
-服务端 `/sg stats`：
-
-- Behavior worker 和队列；
-- 每 Action 调用/失败/超时/拒绝/fallback；
-- 平均与最大耗时。
-
-## 默认协议限制
+## 关键协议上限
 
 | 限制 | 默认值 |
 | --- | ---: |
-| 单网络包 | 32,256 bytes |
-| 解压后单包 | 2 MiB |
-| 文档节点 | 4,096 |
-| 树深 | 64 |
-| 文本字符 / 字符串 UTF-8 | 16,384 / 16,384 bytes |
-| 文档或状态 patch 操作 | 1,024 |
-| 客户端缓存文档 | 32 |
+| 单网络包 / 解压后 | 32,256 bytes / 2 MiB |
+| 文档节点 / 树深 | 4,096 / 64 |
+| 单字符串 UTF-8 | 16,384 bytes |
 | 状态键 / 总值 / 深度 | 2,048 / 8,192 / 16 |
-| 事件 payload 条目 | 64 |
-| 控件条目 | 2,048 |
-| binding | 4,096 |
-| 客户端 feature | 128 |
-| UI 事件 | 40/s，burst 12 |
+| 状态 patch 操作 | 1,024 |
+| 事件 payload 顶层条目 | 64 |
 
-完整文档、patch 后结果、状态、事件和 UTF-8 编码都会再次验证，不能用差量或压缩绕过累计限制。
+完整文档、patch 后结果、状态和事件都会再次验证，不能用压缩或差量绕过累计限制。这些是拒绝异常输入的硬边界，不是推荐生产规模。
 
-## Pack 与文件限制
-
-| 限制 | 默认值 |
-| --- | ---: |
-| Pack 数 | 128 |
-| 单 Pack 文件数 | 1,024 |
-| 单 Pack 文件 | 8 MiB |
-| 单 Pack 总量 | 64 MiB |
-| 独立 UI 文件数 | 256 |
-| 单独立 UI 文件 | 1 MiB |
-| YAML 深度 / 值数 | 96 / 25,000 |
-| automatic mount | 32 |
-
-## 模型编译限制
-
-| 限制 | 默认值 |
-| --- | ---: |
-| `.bbmodel` 源文件 | 16 MiB |
-| 骨骼 | 512 |
-| 顶点 | 1,000,000 |
-| 三角形 | 500,000 |
-| 动画 | 256 |
-| 关键帧 | 500,000 |
-
-这些是拒绝异常输入的硬边界，不是推荐把每个生产模型做到上限。
+下一步：[管理指令](./commands.md) · [快速参考](./reference.md)

@@ -1,22 +1,29 @@
-# 资源与加密发布
+# 资源构建与发布
 
-SpectrumGraphics 提供独立于 Pack 生命周期的客户端资源发布系统。它使用自有 `sgar-aes-256-gcm-v1` 格式：先生成确定性 ZIP payload，再用 AES-256-GCM 认证加密。文件后缀虽然是 `.zip`，但不是普通压缩包，也不与其他插件格式兼容。
+SpectrumGraphics 的资源发布独立于普通 YAML 重载。源资源先被编译、归一化和打包，再以 `sgar-aes-256-gcm-v1` 格式认证加密。生成文件虽使用 `.zip` 后缀，但不是普通 ZIP，也不兼容其他插件的资源格式。
 
-## 准备资源
-
-只把客户端需要的原始文件放进：
+## 源资源目录
 
 ```text
 plugins/SpectrumGraphics/resource/
-├─ textures/
-│  └─ gui/logo.png
-├─ models/
-│  └─ guide.sgmodel
+├─ font/                         # TTF / OTF
+├─ icon/                         # Text 图标
+├─ textures/                     # UI 与通用纹理
+├─ models/                       # .bbmodel / .geo.json / animation JSON / .sgmodel
+├─ particle/                     # *.particle.json 与纹理
 ├─ sounds/
-└─ fonts/
+└─ server/items/                 # PNG / GIF / png.mcmeta 等物品源
 ```
 
-UI YAML、WorldCanvas、模型场景 YAML、Behavior、Pack 清单和服务端配置不要放在这里，也不会被打包。
+构建器会：
+
+- 把 BBModel 或 Bedrock GEO/Animation 编译为 `.sgmodel`；
+- 把 `*.particle.json` 编译为 `.sgparticle`；
+- 把 PNG/GIF/PNG mcmeta/SGModel 与 Item 规则编译为 `.sgitem`；
+- 校验 Text 注册表引用的字体和图标；
+- 只把运行时需要的结果与普通资源放入 staging，再加密归档。
+
+UI、World、Camera、Slot、Pack 清单和 Behavior 不属于二进制资源，不要放在 `resource/`。
 
 ## 构建与发布
 
@@ -26,23 +33,17 @@ UI YAML、WorldCanvas、模型场景 YAML、Behavior、Pack 清单和服务端�
 /sg assets status
 ```
 
-不提供 ID 时，`build` 默认使用 `production`：
-
-```text
-/sg assets build
-```
-
-构建结果位于：
+省略 build ID 时默认为 `production`。结果位于：
 
 ```text
 plugins/SpectrumGraphics/releases/<release-id>/
 ```
 
-发布前会重新检查归档存在且 SHA-256 与元数据一致。`publish` 原子替换当前发布，并立即向已连接客户端发送新 offer。
+`build` 在后台执行并输出模型、物品、粒子、字体、图标的编译统计与诊断。`publish` 会再次验证归档存在且 SHA-256 与元数据一致，再原子切换当前发布并通知在线客户端。
+
+只修改 YAML 时不需要重新构建资源；只有源字节变化或资源引用新增时才 build/publish。
 
 ## 手动分发
-
-默认配置：
 
 ```yaml
 assets:
@@ -50,13 +51,13 @@ assets:
     mode: manual
 ```
 
-把构建命令输出的精确归档交给玩家，直接放进：
+把构建命令输出的精确归档交给玩家，放入：
 
 ```text
-.minecraft/resourcepacks/SpectrumGraphics/resource/xxx.zip
+.minecraft/resourcepacks/SpectrumGraphics/resource/
 ```
 
-客户端连接后会扫描 ZIP、计算哈希并激活与服务端 offer 匹配的发布。文件名可以变化，但内容哈希必须完全一致。
+客户端按内容计算哈希，并只激活与服务端 offer 完全匹配的发布。文件名可以不同，字节和 hash 不能改变。
 
 ## HTTPS 自动分发
 
@@ -69,73 +70,48 @@ assets:
     bind-port: 8765
 ```
 
-将公网 HTTPS 的 `/spectrum-assets/` 反向代理到 `127.0.0.1:8765/spectrum-assets/`，或把按内容寻址的归档镜像到 CDN。然后执行：
+将公网 HTTPS 的 `/spectrum-assets/` 反向代理到 `127.0.0.1:8765/spectrum-assets/`，或把按 hash 命名的归档镜像到 CDN。然后执行 `/sg assets reload`。
+
+客户端流程：
+
+1. 下载到 `.part`；
+2. 检查大小上限和 SHA-256；
+3. 认证并解密 SGAR；
+4. 成功后原子重命名并切换活动发布。
+
+失败候选不会覆盖当前可用资源。
+
+## 本地快速测试
+
+开发客户端可以直接读取：
 
 ```text
-/sg assets reload
+.minecraft/resourcepacks/SpectrumGraphics/resource/
 ```
 
-自动模式强制 `public-base-url` 使用 HTTPS。协议只发送 release ID、大小、SHA-256、下载 URL 和本会话所需的加密信息；归档字节走 HTTPS。
+修改后按 `F7` 或 `F3+T`。普通 `/sg reload` 不要求服务端存在这些测试字节；但正式 `/sg assets build` 会严格要求服务端 `resource/` 中存在所有被声明引用的文件。
 
-## 客户端下载保证
-
-1. 下载到 `.part` 临时文件；
-2. 限制下载大小；
-3. 检查归档 SHA-256；
-4. 认证并解密 SGAR；
-5. 成功后原子重命名并切换活动发布。
-
-失败候选不会覆盖当前可用资源。`/sg assets status` 会显示已发布哈希、交付模式和客户端状态计数。
-
-## 在 UI 与模型中引用
-
-UI namespaced 资源：
+## 资源引用
 
 ```yaml
-type: image
-source: example:textures/gui/logo.png
+source: example:textures/gui/logo.png  # Minecraft namespaced 资源
+source: textures/gui/logo.png          # Spectrum resource 根相对路径
 ```
 
-相对本地资源：
+禁止服务端磁盘绝对路径和 `..` 逃逸。远程图片只允许公共 HTTPS 主机。
 
-```yaml
-type: image
-source: textures/gui/logo.png
-```
-
-模型场景引用资源包内路径：
-
-```yaml
-assets:
-  example:guide:
-    source: models/guide.sgmodel
-```
-
-可选 `sha256` 可把场景绑定到特定模型字节：
-
-```yaml
-assets:
-  example:guide:
-    source: models/guide.sgmodel
-    sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-```
-
-## 动态图片限制
-
-- 单张动态图片最大 4 MiB；
-- 最大尺寸 4096×4096；
-- 最大 16,777,216 像素；
-- GIF 最多 120 帧、33,554,432 解码像素；
-- 远程图片只允许 HTTPS 公共主机；
-- 缓存最多保留 128 个源和 256 个 GPU 纹理；
-- Java 17 / Minecraft 1.20.1 解码器不支持 WebP。
-
-`loop: false` 的 GIF 播放到最后一帧停止；Flow 可用 `spectrumgraphics:image-animation-play/pause/restart/seek` 控制已加载动画。
+动态图片限制包括 4 MiB、4096×4096、最多 120 GIF 帧和有界解码像素；Java 17/Minecraft 1.20.1 路径不支持 WebP。资源缺失或损坏时，节点或物品按各自 fallback 安全降级。
 
 ## 密钥与备份
 
-- 首次启动自动生成 `assets.key`；
-- 不要公开或提交此文件；
-- 已有 published release 时丢失密钥，插件会要求恢复原密钥或重新构建并发布；
-- 备份应同时包含 `assets.key`、`releases/` 和当前 `published.properties`；
-- 轮换密钥意味着所有客户端发布都需要重新构建和分发。
+`assets.key` 首次启动生成。不要公开或提交它。备份应同时包含：
+
+```text
+assets.key
+releases/
+releases/published.properties
+```
+
+丢失密钥后，旧发布无法继续由该服务端认证使用；需要恢复原密钥或重新构建并分发全部资源。
+
+下一步：[物品外观与额外渲染](./item-appearance.md) · [Bedrock 粒子](./particles.md)

@@ -1,26 +1,30 @@
 # Spectrum Pack
 
-Spectrum Pack 把清单、UI、WorldCanvas、模型、Behavior 和 Pack 资源作为一个可验证、可依赖、可原子切换的发布单元。
+Pack 把相关声明、依赖和业务能力作为一个可校验、可依赖、可原子启停的内容单元。新项目应使用 Pack，而不是把所有文件散放在插件根目录。
 
-## 标准结构
+## 推荐结构
 
 ```text
 packs/shop/
 ├─ spectrum.yml
 ├─ ui/
-│  ├─ shop.yml
-│  └─ components.yml
+│  ├─ components.yml
+│  └─ shop.yml
+├─ tooltip/
+│  └─ item.yml
 ├─ world/
-│  └─ marker.yml
-├─ models/
-│  └─ guide.yml
-├─ behaviors/
-│  ├─ purchase.behavior.yml
-│  └─ purchase.js
-└─ assets/
-   └─ shop/
-      └─ textures/
+├─ model/
+├─ camera/
+├─ key/
+├─ avatar/
+├─ text/
+├─ item/
+└─ behaviors/
+   ├─ purchase.behavior.yml
+   └─ purchase.js
 ```
+
+模型、字体、图片和粒子等源资源统一放在 `plugins/SpectrumGraphics/resource/`，不是 Pack 声明目录的一部分。
 
 ## spectrum.yml
 
@@ -28,16 +32,17 @@ packs/shop/
 schema: spectrumgraphics/pack/v1
 id: shop:main
 version: 1.2.0
-name: Shop
-description: 服务器商店视觉与业务 Pack
+name: Server Shop
+description: 商店界面和购买行为
 enabledByDefault: true
 
 features:
   - ui
   - world-canvas
   - models
+  - camera
+  - key
   - behaviors
-  - assets
   - placeholders
   - container-proxy
 
@@ -48,75 +53,60 @@ dependencies:
     version: ^1.0.0
     optional: true
 
-capabilities:
-  - spectrumgraphics:economy
-  - spectrumgraphics:inventory
-
-actions:
-  - shop:purchase
+actions: [shop:purchase]
+capabilities: [spectrumgraphics:economy, spectrumgraphics:inventory]
 ```
 
-### features
+### ID 规则
 
-| 值 | 允许的内容或能力 |
+不要把所有 ID 混为同一种规则：
+
+- Pack ID、依赖、业务 Action 和 Capability 必须是小写 ASCII `namespace:path`；
+- UI、World、Model、Camera、Key、Avatar、Item 等内容 ID 可为纯文本、数字、Unicode、路径式或 namespaced ID；
+- 所有启用内容的最终文档 ID 必须全局唯一；
+- 未显式写 ID 时，部分目录会按相对路径和 Pack 命名空间推导 ID，具体以 Schema 和验证结果为准。
+
+### Feature 声明
+
+Feature 表示 Pack 获准加载或使用的能力。常见值：
+
+| Feature | 内容 |
 | --- | --- |
-| `ui` | `ui/` 下的 UI 文档 |
-| `world-canvas` | `world/` 下的世界空间场景 |
-| `models` | `models/` 下的模型场景 |
+| `ui` | `ui/` 与 `tooltip/` |
+| `world-canvas` | `world/` |
+| `models` | `model/` |
+| `camera` | `camera/` |
+| `key` | `key/` |
 | `behaviors` | Behavior 描述与脚本 |
-| `assets` | Pack 资源声明与使用 |
-| `placeholders` | 占位符状态源 |
+| `assets` | Pack 内 `assets/` 内容与资源声明 |
+| `placeholders` | Placeholder 数据源 |
 | `container-proxy` | 原版容器 Slot 代理 |
 
-不要通过遗漏 feature 绕过声明。使用了某项能力但未声明时，验证应失败。
+`text/`、`avatar/` 和 `item/` 是 Pack 内建发现目录，不要为它们编造不存在的 feature。使用了需要声明的能力却遗漏 feature 时，候选 Pack 会被拒绝。
 
-### dependencies
+Pack `assets/` 会进入 Pack 的内容 hash，并要求 `assets` feature，适合随 Pack 保存供 Studio 或普通资源包工程复用的文件；它不是加密发布的源目录。当前 `/sg assets build` 仍从全局 `plugins/SpectrumGraphics/resource/` 构建运行时资源。
 
-依赖使用 SemVer 约束。必需依赖会先启用；缺失、版本不兼容或循环依赖都会拒绝候选快照。`optional: true` 表示缺失时允许 Pack 继续启用，但如果存在仍需满足版本范围。
+### 依赖与版本
 
-常见范围：
-
-```yaml
-version: 1.2.3   # 精确版本
-version: ^1.2.0  # 兼容的 1.x 更新
-version: ~1.2.0  # 兼容的 1.2.x 更新
-```
-
-### actions 与 capabilities
-
-- `actions` 是该 Pack 允许暴露给客户端 Flow 的服务端业务入口；
-- `capabilities` 是 Behavior 可以请求的外部能力；
-- 先声明，再由脚本、Kotlin API 或 Capability Provider 实现；
-- 客户端不能调用未由当前文档和 Pack 声明的 Action。
+必需依赖必须存在、版本匹配并先于当前 Pack 启用。`optional: true` 允许依赖缺失，但依赖一旦存在仍需满足版本范围。支持精确版本、`^1.2.0` 和 `~1.2.0` 等 SemVer 范围；循环依赖会拒绝整个候选。
 
 ## 原子重载
 
-`/sg validate` 只构建候选，不改变当前在线状态。`/sg reload` 会：
-
-1. 读取所有 Pack、独立 UI、WorldCanvas 与模型；
-2. 验证 schema、命名空间、依赖和跨文件引用；
-3. 编译变更内容，复用未变化的不可变快照；
-4. 全部成功后一次切换；
-5. 同步已打开文档、自动挂载场景和已 spawn 的模型。
-
-任一候选失败时，完整旧快照继续生效。被删除或变为不可用的已绑定文档会在成功切换后关闭。
-
-## 生命周期指令
+`/sg validate` 只构造候选，不改变在线内容。`/sg reload` 会先验证所有 Pack 和独立内容；全部成功后才一次切换，并同步已打开文档和自动挂载内容。任何错误都会让上一份有效快照继续运行。
 
 ```text
-/sg pack enable <namespace:path>
-/sg pack disable <namespace:path>
-/sg pack unload <namespace:path>
+/sg pack enable shop:main
+/sg pack disable shop:main
+/sg pack unload shop:main
 ```
 
-- `enable`：启用已加载 Pack，并同步其自动挂载；
-- `disable`：保留已加载定义但停用，并关闭不再可用的文档；
-- `unload`：从当前仓库快照卸载；
-- 反向依赖关系会阻止产生不一致的启停状态。
+- `enable`：启用已加载 Pack 并发布自动内容；
+- `disable`：保留定义但停止使用，关闭不再可用的在线文档；
+- `unload`：从当前仓库快照移除；
+- 反向依赖会阻止造成不一致的停用或卸载。
 
-## 最佳实践
+## 独立内容与覆盖
 
-- 一个 Pack 只使用一个稳定命名空间；
-- 将共享组件放进单独组件文件并显式 import；
-- 将业务 Action、错误码和 Capability 一并纳入版本控制；
-- 每次提交先执行 `/sg validate` 和自动验证脚本；
+根目录下的 `ui/`、`world/`、`text/` 等仍受支持。独立 Text、Avatar 等仓库在同 ID 冲突时可能具有明确覆盖规则，但新项目不要依赖隐式覆盖来组织主题；把同一功能放在一个 Pack 内更容易审查和回滚。
+
+下一步：[作者工作流](./authoring-workflow.md) · [Behavior 与 Capability](./behaviors.md)

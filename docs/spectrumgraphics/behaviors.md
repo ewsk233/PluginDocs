@@ -142,7 +142,7 @@ Kether 只在隔离的 `spectrum` 命名空间解析纯计算动作。命令、�
 ```kotlin
 val packId = NamespacedId("shop:main")
 
-SpectrumGraphics.api.registerBehaviors(packId) {
+SpectrumGraphics.api.extensions.registerBehaviors(packId) {
     action("purchase") {
         input { number("amount", minimum = 0.01) }
         output { string("receipt") }
@@ -163,7 +163,7 @@ SpectrumGraphics.api.registerBehaviors(packId) {
 ## 自定义 Capability
 
 ```kotlin
-SpectrumGraphics.api.registerCapability(
+SpectrumGraphics.api.extensions.registerCapability(
     packId,
     NamespacedId("shop:economy"),
 ) {
